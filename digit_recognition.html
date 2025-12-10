@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconnaissance de Chiffres</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔢 Reconnaissance de Chiffres</h1>
+        <p class="subtitle">Dessinez un chiffre de 0 à 9</p>
+        
+        <div class="canvas-container">
+            <canvas id="canvas" width="280" height="280"></canvas>
+        </div>
+        
+        <div class="preview-container" id="previewContainer" style="display: none;">
+            <p class="preview-title">🔍 Image envoyée au modèle (28×28) :</p>
+            <canvas id="previewCanvas" width="140" height="140"></canvas>
+        </div>
+
+        <div class="button-group">
+            <button id="clearBtn">🗑️ Effacer</button>
+            <button id="predictBtn">🔍 Prédire</button>
+        </div>
+
+        <div id="result" class="result-hidden">
+            Dessinez un chiffre et cliquez sur Prédire
+        </div>
+
+        <div class="instructions">
+            <strong>📝 Instructions :</strong>
+            • Dessinez un chiffre sur le canvas avec votre souris<br>
+            • Cliquez sur "Effacer" pour recommencer<br>
+            • Cliquez sur "Prédire" pour lancer la reconnaissance IA<br>
+            <strong>⚡ Utilise ONNX Runtime pour l'inférence en temps réel !</strong>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
