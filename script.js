@@ -1,353 +1,286 @@
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const clearBtn = document.getElementById('clearBtn');
+const fileInput = document.getElementById('fileInput');
+const cameraBtn = document.getElementById('cameraBtn');
+const cameraContainer = document.getElementById('cameraContainer');
+const video = document.getElementById('video');
+const captureBtn = document.getElementById('captureBtn');
+const closeCameraBtn = document.getElementById('closeCameraBtn');
+const displayCanvas = document.getElementById('displayCanvas');
+const displayCtx = displayCanvas.getContext('2d');
 const predictBtn = document.getElementById('predictBtn');
 const resultDiv = document.getElementById('result');
+const previewCanvas = document.getElementById('previewCanvas');
+const previewCtx = previewCanvas.getContext('2d');
+const previewContainer = document.getElementById('previewContainer');
+const previewMain = document.getElementById('previewMain');
 
-let isDrawing = false;
-let lastX = 0;
-let lastY = 0;
 let session = null;
+let currentImage = null;
+let stream = null;
 
-// Configuration du canvas
-ctx.lineWidth = 20;
-ctx.lineCap = 'round';
-ctx.lineJoin = 'round';
-ctx.strokeStyle = '#FFF'; // Dessiner en blanc
+// Classes CIFAR-10
+const CIFAR10_CLASSES = [
+    '✈️ Avion',
+    '🚗 Automobile', 
+    '🐦 Oiseau',
+    '🐱 Chat',
+    '🦌 Cerf',
+    '🐕 Chien',
+    '🐸 Grenouille',
+    '🐴 Cheval',
+    '🚢 Bateau',
+    '🚚 Camion'
+];
+
 ort.env.logLevel = 'error';
 
-// Remplir le canvas en noir au départ (comme MNIST)
-ctx.fillStyle = '#000';
-ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-// Charger le modèle ONNX au démarrage
+// Charger le modèle ONNX
 async function loadModel() {
     try {
-        resultDiv.textContent = '⏳ Chargement du modèle...';
+        resultDiv.textContent = '⏳ Chargement du modèle CIFAR-10...';
         resultDiv.className = 'result-show';
         
         session = await ort.InferenceSession.create('model.onnx');
         
-        resultDiv.textContent = '✅ Modèle chargé ! Dessinez un chiffre';
+        resultDiv.textContent = '✅ Modèle chargé ! Téléchargez une image';
         setTimeout(() => {
             resultDiv.className = 'result-hidden';
         }, 2000);
     } catch (error) {
-        console.error('Erreur lors du chargement du modèle:', error);
-        resultDiv.textContent = '❌ Erreur: Modèle non trouvé. Assurez-vous que model.onnx existe dans le dossier.';
-        resultDiv.className = 'result-show';
+        console.error('Erreur chargement modèle:', error);
+        resultDiv.textContent = '❌ Modèle introuvable. Exportez model.onnx depuis Jupyter.';
+        resultDiv.className = 'result-show error';
     }
 }
 
-// Prétraiter l'image du canvas pour le modèle avec détection de patterns
-function preprocessCanvas() {
-    // Étape 1 : Détecter la bounding box du chiffre
-    const boundingBox = detectBoundingBox();
+// Gérer l'upload d'image
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     
-    if (!boundingBox) {
-        console.warn('Aucun chiffre détecté');
-        return new Float32Array(1 * 1 * 28 * 28).fill(0);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            currentImage = img;
+            displayImage(img);
+            predictBtn.style.display = 'block';
+            previewContainer.style.display = 'none';
+            resultDiv.textContent = 'Image chargée ! Cliquez sur Analyser';
+            resultDiv.className = 'result-show';
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// Afficher l'image sur le canvas
+function displayImage(img) {
+    previewMain.style.display = 'block';
+    
+    // Calculer les dimensions pour garder l'aspect ratio
+    const maxSize = 280;
+    let width = img.width;
+    let height = img.height;
+    
+    if (width > height) {
+        if (width > maxSize) {
+            height = (height * maxSize) / width;
+            width = maxSize;
+        }
+    } else {
+        if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
+        }
     }
     
-    console.log('📦 Bounding box:', boundingBox);
+    // Centrer l'image
+    const x = (displayCanvas.width - width) / 2;
+    const y = (displayCanvas.height - height) / 2;
     
-    // Étape 2 : Extraire et centrer le chiffre
-    const centeredCanvas = extractAndCenterDigit(boundingBox);
-    
-    // Étape 3 : Redimensionner à 28x28
-    const resizedCanvas = document.createElement('canvas');
-    const resizedCtx = resizedCanvas.getContext('2d');
-    resizedCanvas.width = 28;
-    resizedCanvas.height = 28;
-    
-    // Calculer les dimensions pour conserver le ratio (comme MNIST)
-    const size = Math.max(boundingBox.width, boundingBox.height);
-    const scale = 20 / size; // MNIST a environ 20px pour le chiffre dans 28x28
-    const scaledWidth = boundingBox.width * scale;
-    const scaledHeight = boundingBox.height * scale;
-    
-    // Centrer dans 28x28
-    const offsetX = (28 - scaledWidth) / 2;
-    const offsetY = (28 - scaledHeight) / 2;
-    
-    resizedCtx.drawImage(
-        centeredCanvas,
-        offsetX, offsetY,
-        scaledWidth, scaledHeight
-    );
-    
-    // Étape 4 : Convertir en tableau normalisé
-    const imageData = resizedCtx.getImageData(0, 0, 28, 28);
-    const pixels = imageData.data;
-    
-    const input = new Float32Array(1 * 1 * 28 * 28);
-    for (let i = 0; i < 28 * 28; i++) {
-        const pixelIndex = i * 4;
-        const r = pixels[pixelIndex];
-        const g = pixels[pixelIndex + 1];
-        const b = pixels[pixelIndex + 2];
-        
-        const gray = (r + g + b) / 3;
-        input[i] = gray / 255.0;
+    displayCtx.fillStyle = '#FFF';
+    displayCtx.fillRect(0, 0, displayCanvas.width, displayCanvas.height);
+    displayCtx.drawImage(img, x, y, width, height);
+}
+
+// Gérer la webcam
+cameraBtn.addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' } 
+        });
+        video.srcObject = stream;
+        cameraContainer.style.display = 'block';
+        previewMain.style.display = 'none';
+    } catch (error) {
+        alert('❌ Impossible d\'accéder à la caméra : ' + error.message);
     }
+});
+
+// Capturer une photo
+captureBtn.addEventListener('click', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
     
-    visualizePreprocessed(resizedCanvas);
+    const img = new Image();
+    img.onload = () => {
+        currentImage = img;
+        displayImage(img);
+        closeCamera();
+        predictBtn.style.display = 'block';
+        previewContainer.style.display = 'none';
+        resultDiv.textContent = 'Photo capturée ! Cliquez sur Analyser';
+        resultDiv.className = 'result-show';
+    };
+    img.src = canvas.toDataURL();
+});
+
+// Fermer la caméra
+closeCameraBtn.addEventListener('click', closeCamera);
+
+function closeCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    cameraContainer.style.display = 'none';
+}
+
+// Prétraiter l'image pour CIFAR-10 (224x224 RGB, normalisation ImageNet)
+function preprocessImage() {
+    if (!currentImage) return null;
+    
+    // Canvas temporaire 224x224
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 224;
+    tempCanvas.height = 224;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Redimensionner l'image vers 224x224
+    tempCtx.drawImage(currentImage, 0, 0, 224, 224);
+    
+    // Afficher l'aperçu
+    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    previewCtx.drawImage(tempCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+    previewContainer.style.display = 'block';
+    
+    // Obtenir les pixels
+    const imageData = tempCtx.getImageData(0, 0, 224, 224);
+    const data = imageData.data;
+    
+    // Préparer le tensor [1, 3, 224, 224] avec normalisation ImageNet
+    const input = new Float32Array(1 * 3 * 224 * 224);
+    
+    // Normalisation CIFAR-10 (doit correspondre à celle du training)
+    const mean = [0.4914, 0.4822, 0.4465];
+    const std = [0.2470, 0.2435, 0.2616];
+    
+    // Convertir RGBA → RGB normalisé (CHW format)
+    for (let i = 0; i < 224; i++) {
+        for (let j = 0; j < 224; j++) {
+            const idx = (i * 224 + j) * 4;
+            const baseIdx = i * 224 + j;
+            
+            // Canal R
+            input[baseIdx] = (data[idx] / 255.0 - mean[0]) / std[0];
+            // Canal G
+            input[224 * 224 + baseIdx] = (data[idx + 1] / 255.0 - mean[1]) / std[1];
+            // Canal B  
+            input[2 * 224 * 224 + baseIdx] = (data[idx + 2] / 255.0 - mean[2]) / std[2];
+        }
+    }
     
     return input;
 }
 
-// Détecter la bounding box du chiffre dessiné
-function detectBoundingBox() {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    
-    let minX = canvas.width;
-    let minY = canvas.height;
-    let maxX = 0;
-    let maxY = 0;
-    let hasPixel = false;
-    
-    // Parcourir tous les pixels pour trouver les limites
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            const i = (y * canvas.width + x) * 4;
-            const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-            
-            // Si le pixel est suffisamment lumineux (blanc)
-            if (brightness > 30) {
-                hasPixel = true;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-            }
-        }
+// Fonction de prédiction
+async function predict() {
+    if (!session) {
+        resultDiv.textContent = '❌ Modèle non chargé';
+        resultDiv.className = 'result-show error';
+        return;
     }
     
-    if (!hasPixel) return null;
-    
-    // Ajouter une petite marge
-    const margin = 10;
-    minX = Math.max(0, minX - margin);
-    minY = Math.max(0, minY - margin);
-    maxX = Math.min(canvas.width, maxX + margin);
-    maxY = Math.min(canvas.height, maxY + margin);
-    
-    return {
-        x: minX,
-        y: minY,
-        width: maxX - minX,
-        height: maxY - minY
-    };
-}
-
-// Extraire et centrer le chiffre
-function extractAndCenterDigit(bbox) {
-    const extractCanvas = document.createElement('canvas');
-    const extractCtx = extractCanvas.getContext('2d');
-    extractCanvas.width = bbox.width;
-    extractCanvas.height = bbox.height;
-    
-    // Copier la région du chiffre
-    extractCtx.drawImage(
-        canvas,
-        bbox.x, bbox.y, bbox.width, bbox.height,
-        0, 0, bbox.width, bbox.height
-    );
-    
-    return extractCanvas;
-}
-
-// Fonction pour visualiser l'image prétraitée
-function visualizePreprocessed(tempCanvas) {
-    const previewContainer = document.getElementById('previewContainer');
-    const previewCanvas = document.getElementById('previewCanvas');
-    const previewCtx = previewCanvas.getContext('2d');
-    
-    // Afficher le conteneur
-    previewContainer.style.display = 'block';
-    
-    // Effacer le canvas
-    previewCtx.fillStyle = '#000';
-    previewCtx.fillRect(0, 0, 140, 140);
-    
-    // Dessiner l'image 28x28 agrandie 5x pour voir les pixels
-    previewCtx.imageSmoothingEnabled = false;
-    previewCtx.drawImage(tempCanvas, 0, 0, 140, 140);
-}
-
-// Prédiction avec ONNX Runtime
-async function predictDigit() {
-    if (!session) {
-        resultDiv.textContent = '❌ Modèle non chargé. Veuillez rafraîchir la page.';
-        resultDiv.className = 'result-show';
+    if (!currentImage) {
+        resultDiv.textContent = '❌ Aucune image chargée';
+        resultDiv.className = 'result-show error';
         return;
     }
     
     try {
-        const inputData = preprocessCanvas();
+        resultDiv.textContent = '🔄 Analyse en cours...';
+        resultDiv.className = 'result-show';
         
-        const tensor = new ort.Tensor('float32', inputData, [1, 1, 28, 28]);
+        // Prétraiter l'image
+        const inputData = preprocessImage();
+        if (!inputData) {
+            throw new Error('Erreur de prétraitement');
+        }
         
-        const feeds = { [session.inputNames[0]]: tensor };
+        // Créer le tensor d'entrée
+        const tensor = new ort.Tensor('float32', inputData, [1, 3, 224, 224]);
+        
+        // Exécuter l'inférence
+        const feeds = { input: tensor };
         const results = await session.run(feeds);
         
-        const output = results[session.outputNames[0]].data;
-        console.log('Sorties complètes du modèle:');
-        for (let i = 0; i < output.length; i++) {
-            console.log("Digits " + i + " output: " + output[i]);
-        }
-                
-        let maxProb = -Infinity;
-        let predictedDigit = -1;
+        // Obtenir les prédictions
+        const output = results.output.data;
         
-        for (let i = 0; i < output.length; i++) {
-            if (output[i] > maxProb) {
-                maxProb = output[i];
-                predictedDigit = i;
+        // Trouver la classe avec la plus haute probabilité
+        let maxIdx = 0;
+        let maxVal = output[0];
+        for (let i = 1; i < output.length; i++) {
+            if (output[i] > maxVal) {
+                maxVal = output[i];
+                maxIdx = i;
             }
         }
         
-        console.log("Chiffre prédit:", predictedDigit, "avec valeur:", maxProb);
+        // Calculer softmax pour les probabilités
+        const expScores = Array.from(output).map(x => Math.exp(x));
+        const sumExp = expScores.reduce((a, b) => a + b, 0);
+        const probabilities = expScores.map(x => x / sumExp);
         
-        const expSum = Array.from(output).reduce((sum, val) => sum + Math.exp(val), 0);
-        console.log("expSum: " + expSum);
-        const confidence = (Math.exp(maxProb) / expSum * 100).toFixed(1);
-        console.log("confidence: " + confidence);
-        resultDiv.textContent = `🎯 Prédiction : ${predictedDigit} (Confiance : ${confidence}%)`;
-        resultDiv.className = 'result-show';
+        // Top 3 prédictions
+        const top3 = probabilities
+            .map((prob, idx) => ({ class: CIFAR10_CLASSES[idx], prob: prob }))
+            .sort((a, b) => b.prob - a.prob)
+            .slice(0, 3);
+        
+        // Afficher le résultat
+        const confidence = (top3[0].prob * 100).toFixed(1);
+        
+        let resultHTML = `
+            <div class="prediction-main">
+                <strong>🎯 Prédiction :</strong> ${top3[0].class}<br>
+                <strong>📊 Confiance :</strong> ${confidence}%
+            </div>
+            <div class="prediction-top3">
+                <strong>Top 3 :</strong><br>
+                1️⃣ ${top3[0].class} - ${(top3[0].prob * 100).toFixed(1)}%<br>
+                2️⃣ ${top3[1].class} - ${(top3[1].prob * 100).toFixed(1)}%<br>
+                3️⃣ ${top3[2].class} - ${(top3[2].prob * 100).toFixed(1)}%
+            </div>
+        `;
+        
+        resultDiv.innerHTML = resultHTML;
+        resultDiv.className = 'result-show success';
+        
+        console.log('Prédictions détaillées:', top3);
         
     } catch (error) {
-        console.error('Erreur lors de la prédiction:', error);
+        console.error('Erreur prédiction:', error);
         resultDiv.textContent = `❌ Erreur: ${error.message}`;
-        resultDiv.className = 'result-show';
+        resultDiv.className = 'result-show error';
     }
 }
 
-// Initialiser le modèle au chargement de la page
+// Event listeners
+predictBtn.addEventListener('click', predict);
+
+// Charger le modèle au démarrage
 loadModel();
-
-// Fonction pour obtenir la position de la souris
-function getMousePos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-    };
-}
-
-// Fonction pour obtenir la position du toucher
-function getTouchPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY
-    };
-}
-
-// Événements souris
-canvas.addEventListener('mousedown', (e) => {
-    isDrawing = true;
-    const pos = getMousePos(e);
-    lastX = pos.x;
-    lastY = pos.y;
-});
-
-canvas.addEventListener('mousemove', (e) => {
-    if (!isDrawing) return;
-    
-    const pos = getMousePos(e);
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    
-    lastX = pos.x;
-    lastY = pos.y;
-});
-
-canvas.addEventListener('mouseup', () => {
-    isDrawing = false;
-});
-
-canvas.addEventListener('mouseout', () => {
-    isDrawing = false;
-});
-
-// Événements tactiles (mobile)
-canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    isDrawing = true;
-    const pos = getTouchPos(e);
-    lastX = pos.x;
-    lastY = pos.y;
-});
-
-canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-    
-    const pos = getTouchPos(e);
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    
-    lastX = pos.x;
-    lastY = pos.y;
-});
-
-canvas.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    isDrawing = false;
-});
-
-// Bouton Effacer
-clearBtn.addEventListener('click', () => {
-    // Remettre le fond noir
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Cacher le preview
-    const previewContainer = document.getElementById('previewContainer');
-    previewContainer.style.display = 'none';
-    
-    resultDiv.textContent = 'Canvas effacé ! Dessinez un nouveau chiffre';
-    resultDiv.className = 'result-show';
-    
-    setTimeout(() => {
-        resultDiv.className = 'result-hidden';
-    }, 2000);
-});
-
-// Bouton Prédire
-predictBtn.addEventListener('click', async () => {
-    // Vérifier si le canvas est vide
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    let isEmpty = true;
-    
-    for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] > 0) { // Alpha channel
-            isEmpty = false;
-            break;
-        }
-    }
-    
-    if (isEmpty) {
-        resultDiv.textContent = '⚠️ Veuillez dessiner un chiffre d\'abord !';
-        resultDiv.className = 'result-show';
-        return;
-    }
-    
-    // Faire la prédiction avec ONNX Runtime
-    await predictDigit();
-});
-
-// Le message initial est géré par loadModel()

@@ -19,7 +19,7 @@ body {
     border-radius: 20px;
     padding: 40px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 600px;
+    max-width: 650px;
     width: 100%;
     text-align: center;
 }
@@ -36,14 +36,107 @@ h1 {
     font-size: 1.1em;
 }
 
-.canvas-container {
+/* Upload Container */
+.upload-container {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.upload-label {
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.upload-label:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(245, 87, 108, 0.4);
+}
+
+.camera-btn {
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: white;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.camera-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(67, 233, 123, 0.4);
+}
+
+/* Preview Main */
+.preview-main {
     background: #f8f9fa;
     border-radius: 15px;
     padding: 20px;
     margin-bottom: 25px;
-    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+#displayCanvas {
+    border: 3px solid #667eea;
+    border-radius: 10px;
+    background: #FFF;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Camera Container */
+.camera-container {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+#video {
+    border: 3px solid #43e97b;
+    border-radius: 10px;
+    display: block;
+    margin: 0 auto 15px;
+}
+
+.action-btn {
+    padding: 12px 25px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 5px;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.action-btn.secondary {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* Preview Container */
 .preview-container {
     background: #e8f5e9;
     border-radius: 15px;
@@ -62,21 +155,12 @@ h1 {
 #previewCanvas {
     border: 2px solid #4caf50;
     border-radius: 8px;
-    background: #000;
+    background: #FFF;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
 
-#canvas {
-    border: 3px solid #667eea;
-    border-radius: 10px;
-    cursor: crosshair;
-    background: #000;
-    display: block;
-    margin: 0 auto;
-    touch-action: none;
-}
-
+/* Button Group */
 .button-group {
     display: flex;
     gap: 15px;
@@ -84,50 +168,54 @@ h1 {
     margin-bottom: 25px;
 }
 
-button {
-    padding: 15px 30px;
-    font-size: 16px;
+.predict-btn {
+    padding: 15px 40px;
+    font-size: 18px;
     font-weight: 600;
     border: none;
     border-radius: 10px;
     cursor: pointer;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
     transition: all 0.3s ease;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
-#clearBtn {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-}
-
-#clearBtn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 20px rgba(245, 87, 108, 0.4);
-}
-
-#predictBtn {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    color: white;
-}
-
-#predictBtn:hover {
+.predict-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 20px rgba(79, 172, 254, 0.4);
 }
 
+/* Result */
 #result {
     background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
     padding: 20px;
     border-radius: 10px;
-    font-size: 1.3em;
-    font-weight: bold;
+    font-size: 1.2em;
     color: #333;
-    min-height: 60px;
+    min-height: 80px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.3s ease;
+}
+
+.prediction-main {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.prediction-top3 {
+    font-size: 0.9em;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 10px 15px;
+    border-radius: 8px;
+    text-align: left;
+    display: inline-block;
 }
 
 .result-hidden {
@@ -135,7 +223,16 @@ button {
 }
 
 .result-show {
+    opacity: 1;
     animation: fadeIn 0.5s ease-in;
+}
+
+.result-show.success {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.result-show.error {
+    background: linear-gradient(135deg, #ffccbc 0%, #ffab91 100%);
 }
 
 @keyframes fadeIn {
@@ -149,6 +246,24 @@ button {
     }
 }
 
+/* Classes Info */
+.classes-info {
+    background: #fff3e0;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    color: #e65100;
+    font-size: 0.95em;
+    line-height: 1.8;
+}
+
+.classes-info strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1.05em;
+}
+
+/* Instructions */
 .instructions {
     background: #e3f2fd;
     padding: 15px;
@@ -163,4 +278,28 @@ button {
     display: block;
     margin-bottom: 8px;
     font-size: 1.1em;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+    }
+    
+    h1 {
+        font-size: 1.8em;
+    }
+    
+    #displayCanvas, #video {
+        width: 240px;
+        height: 240px;
+    }
+    
+    .upload-container {
+        flex-direction: column;
+    }
+    
+    .upload-label, .camera-btn {
+        width: 100%;
+    }
 }
